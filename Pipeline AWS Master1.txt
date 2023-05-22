@@ -1,0 +1,55 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('CleanUP last builds') {
+            steps {
+                deleteDir()
+            }
+        }
+        stage('Checkout to GitHub') {
+            steps {
+                checkout([$class: 'GitSCM', branches: [[name: '*/1.1']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/bsever2005/podman-images.git']]])
+            }
+        }
+        stage('Build image from GitHub') {
+            steps {
+                script {
+                    def imageName = 'tomcat'
+                    def imageTag = '1.1'
+                    def dockerfilePath = '.'
+                    def buildArgs = ''
+                    def command = "podman build --format docker -t ${imageName}:${imageTag} ${buildArgs} ${dockerfilePath}"
+                    sh command
+                }
+            }
+        }
+        
+stage('Connect to AWS EC2 instance') {
+    steps {
+	withCredentials([string(credentialsId: 'MASTER1_IP_ADDRESS', variable: 'SECRET')]) {
+        sshagent(['aws']) {
+            sh 'ssh -o StrictHostKeyChecking=no ec2-user@$SECRET "echo Connected successfully"'
+        }
+    }
+}
+}
+
+stage('Pull and run Docker image on AWS EC2 instance') {
+
+    steps {
+        withCredentials([string(credentialsId: 'MASTER1_IP_ADDRESS', variable: 'SECRET')]) {
+        withCredentials([usernamePassword(credentialsId: 'DOCKER_HUB', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+        sshagent(['aws']) {
+		    sh 'ssh -o StrictHostKeyChecking=no ec2-user@$SECRET  "sudo docker login -u $USERNAME -p $PASSWORD registry-1.docker.io"'
+            sh 'ssh -o StrictHostKeyChecking=no ec2-user@$SECRET  "sudo docker pull docker.io/bsever1/tomcat:1.1"'
+            sh 'ssh -o StrictHostKeyChecking=no ec2-user@$SECRET  "sudo docker stop tomcat || true"'
+            sh 'ssh -o StrictHostKeyChecking=no ec2-user@$SECRET  "sudo docker rm tomcat || true"'
+            sh 'ssh -o StrictHostKeyChecking=no ec2-user@$SECRET  "sudo docker run --pull always --name tomcat -d -p 8080:8080 docker.io/bsever1/tomcat:1.1"'
+        }
+        }
+    }
+  }
+      }
+    }
+}

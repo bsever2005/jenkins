@@ -1,0 +1,59 @@
+pipeline {
+    agent any
+    environment {
+    SSH_ASKPASS = "/opt/jenkins"
+}
+
+    stages {
+        stage('CleanUP lastbuilds') {
+            steps {
+                deleteDir()
+            }
+        }
+        stage('Checkout to GitHub') {
+            steps {
+                checkout([$class: 'GitSCM', branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/bsever2005/Cloud.git']]])
+            }
+        }
+        stage('Build image from GitHub') {
+            steps {
+                script {
+                    def imageName = 'tomcat'
+                    def imageTag = 'latest'
+                    def dockerfilePath = '.'
+                    def buildArgs = ''
+                    def command = "podman build --format docker -t ${imageName}:${imageTag} ${buildArgs} ${dockerfilePath}"
+                    sh command
+                }
+            }
+        }
+        stage('Push image to Docker Hub') {
+            steps {
+                script {
+                    def imageName = 'tomcat'
+                    def imageTag = 'latest'
+                    def dockerHubRepo = "registry-1.docker.io/bsever1/${imageName}:${imageTag}"
+            
+            withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: '****', usernameVariable: 'bsever')]) {
+                sh "podman login -u bsever1 -p **** registry-1.docker.io"
+            }          
+            sh "podman tag ${imageName}:${imageTag} ${dockerHubRepo}"
+            sh "podman push ${dockerHubRepo}"
+                    }
+            }
+        }
+        stage('SSH and deploy image to remote server') {
+            steps {
+                script {
+                    sshagent(['brunbos.online']) {
+                        sh '''
+                            sshpass -p '!?Leptir2005' ssh -o StrictHostKeyChecking=no bruno@brunbos.online  'echo ****  | sudo -S su -'
+                            sshpass -p '!?Leptir2005' ssh -o StrictHostKeyChecking=no bruno@brunbos.online  'echo ****  | sudo -S podman login -u bsever1 -p **** registry-1.docker.io'
+                            sshpass -p '!?Leptir2005' ssh -o StrictHostKeyChecking=no bruno@brunbos.online  'echo ****  | sudo -S podman stop tomcat100; echo ****  | sudo -S podman rm tomcat100; echo ****  | sudo -S podman run --pull always --name tomcat100 -p 8088:8080 -d docker.io/bsever1/tomcat:latest'
+                        '''
+                    }
+                }
+            }
+        }
+      }
+    }

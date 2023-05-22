@@ -1,0 +1,20 @@
+pipeline {
+  agent any
+  stages {
+    stage('Login to GLCD') {
+      steps {
+        withCredentials([
+          usernamePassword(credentialsId: 'GOOGLE_SSH', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')
+        ]) {
+          withCredentials([
+            string(credentialsId: 'GOOGLE_IP_ADDRESS', variable: 'SECRET')
+          ]) {
+            sh '''
+				sshpass -p $PASSWORD ssh -v -x -o StrictHostKeyChecking=no $USERNAME@$SECRET  pwd
+            '''
+          }
+        }
+      }
+    }
+  }
+}

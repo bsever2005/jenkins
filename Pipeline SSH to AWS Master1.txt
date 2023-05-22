@@ -1,0 +1,14 @@
+pipeline {
+	agent any
+	stages {
+stage('Connect to AWS EC2 instance') {
+    steps {
+	withCredentials([string(credentialsId: 'MASTER1_IP_ADDRESS', variable: 'SECRET')]) {
+        sshagent(['aws']) {
+            sh 'ssh -o StrictHostKeyChecking=no ec2-user@$SECRET "echo Connected successfully"'
+        }
+    }
+}
+    }
+  }
+}
